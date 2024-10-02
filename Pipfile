@@ -15,8 +15,10 @@ requests = "*"
 reactable = "*"
 great-tables = "*"
 shinywidgets = "*"
-
-
+pyyaml = "*"
+nbformat = "*"
+nbconvert = "*"
+nbclient = "*"
 
 [dev-packages]
 

@@ -70,7 +70,7 @@ app_ui = ui.page_fluid(
                 ui.div(
                     ui.h2("About GitHub Issues Explorer"),
                     ui.p(
-                        "This app allows users to explore closed issues from specified GitHub repositories."
+                        "This app allows users to explore closed issues from specified GitHub repositories. It was created using https://gallery.shinyapps.io/shiny-claude/"
                     ),
                     ui.br(),
                     ui.h4("Features:"),
