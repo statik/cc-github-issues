@@ -4,6 +4,7 @@ import polars as pl
 import requests
 import math
 import json
+import os
 
 # Default date (2 years ago)
 default_date = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
