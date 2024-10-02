@@ -214,7 +214,7 @@ def server(input, output, session):
         main_count = math.floor(len(df) * 0.8)
         return render.DataTable(df.tail(len(df) - main_count).to_pandas())
 
-    @session.download(filename="github_issues.json")
+    @render.download(filename="github_issues.json")
     def download_json():
         if issues_data() is None:
             return ""
