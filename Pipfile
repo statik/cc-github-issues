@@ -7,7 +7,16 @@ verify_ssl = true
 polars = "*"
 shiny = "*"
 shinyswatch = "*"
-github = "*"
+ghapi = "*"
+pyarrow = "*"
+pandas = "*"
+jinja2 = "*"
+requests = "*"
+reactable = "*"
+great-tables = "*"
+shinywidgets = "*"
+
+
 
 [dev-packages]
 
