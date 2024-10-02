@@ -234,7 +234,9 @@ def server(input, output, session):
 
     @render.download(filename="github_issues.json")
     def download_json():
+        # print("Download function called")  # Debug print
         if issues_data() is None:
+            print("No data available")  # Debug print
             return ""
         df = issues_data()
         main_count = math.floor(len(df) * 0.8)
@@ -254,7 +256,8 @@ def server(input, output, session):
             ]
         }
 
-        return json.dumps(formatted_data, indent=2)
-
+        json_output = json.dumps(formatted_data, indent=2)
+        # print(f"JSON output: {json_output[:100]}...")  # Debug print (first 100 chars)
+        yield json_output
 
 app = App(app_ui, server)
