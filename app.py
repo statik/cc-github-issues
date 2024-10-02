@@ -47,6 +47,7 @@ app_ui = ui.page_fluid(
                     ui.input_action_button("load_issues", "Load Issues"),
                     ui.output_text("filtered_count_text"),
                     ui.download_button("download_json", "Download Main Table as JSON"),
+                    open="open",
                 ),
                 ui.div(
                     ui.h3("80% of Issues"),
