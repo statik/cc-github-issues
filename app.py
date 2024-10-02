@@ -126,6 +126,22 @@ def server(input, output, session):
             )
             return
 
+        # Get the GitHub token from environment variable
+        github_token = os.environ.get("GITHUB_TOKEN")
+
+        headers = {"Accept": "application/vnd.github.v3+json"}
+
+        if github_token:
+            headers["Authorization"] = f"token {github_token}"
+            ui.notification_show(
+                "Using authenticated GitHub API requests", type="message"
+            )
+        else:
+            ui.notification_show(
+                "GitHub token not found. Using unauthenticated requests with lower rate limits.",
+                type="warning",
+            )
+
         with ui.Progress(min=0, max=100) as p:
             p.set(message="Fetching issues...", detail="This may take a moment.")
 
