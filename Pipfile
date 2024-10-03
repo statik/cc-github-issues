@@ -20,6 +20,8 @@ nbformat = "*"
 nbconvert = "*"
 nbclient = "*"
 rsconnect = "*"
+openai = "*"
+ollama = "*"
 
 [dev-packages]
 
