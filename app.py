@@ -138,6 +138,7 @@ app_ui = ui.page_fluid(
                     ui.input_text("analyze_issue", "What issue do you want to analyze?"),
                     ui.input_action_button("load_issue_query", "Create Issue Query"),
                     ui.input_action_button("reset_chat", "Reset chat", class_="btn-warning"),
+                    open="open",
                 ),
                 ui.div(
                     ui.input_text_area(
