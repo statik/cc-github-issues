@@ -130,9 +130,16 @@ app_ui = ui.page_fluid(
                     #     multiple=True,
                     #     options={"plugins": ["clear_button"]},
                     # ),
+                    ui.input_text("analyze_issue", "What issue do you want to analyze?"),
+                    ui.input_action_button("load_issue_query", "Create Issue Query"),
                     ui.input_action_button("reset_chat", "Reset chat", class_="btn-warning"),
                 ),
                 ui.div(
+                    ui.input_text_area(
+                        "system_prompt",
+                        "System Prompt",
+                        rows=5,
+                        value="You are an AI assistant helping with GitHub issues analysis."),
                     ui.chat_ui("chat"),
                 ),
             ),
@@ -186,6 +193,7 @@ def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
     test_data = reactive.Value({ "issues": { "1": "Issue 1"}})
+    system_prompt = reactive.Value("")
 
     initial_messages = [
         {
@@ -213,6 +221,12 @@ def server(input, output, session):
     async def reset():
         print("Resetting chat")
         await chat.clear_messages()
+
+    @reactive.effect
+    @reactive.event(input.load_issue_query)
+    def load():
+        text = f"Analyze issue: {input.analyze_issue()}"
+        chat.update_user_input(value=text)
 
 
     @reactive.Effect
