@@ -29,8 +29,26 @@ def get_label_color(label):
     hex_dig = hash_object.hexdigest()
     return f"#{hex_dig[:6]}"
 
+def truncate_text(text, max_length=100):
+    return text[:max_length] + "..." if len(text) > max_length else text
+
+
 app_ui = ui.page_fluid(
     ui.head_content(
+        ui.tags.script("""
+            $(document).on('click', '.clickable-row tbody tr', function() {
+                let issueNumber = $(this).find('td:first').text();
+                Shiny.setInputValue('selected_issue', issueNumber);
+            });
+            $(document).on('click', '#copy_button', function() {
+                var bodyText = $('#modal_body').text();
+                navigator.clipboard.writeText(bodyText).then(function() {
+                    console.log('Text copied to clipboard');
+                }).catch(function(err) {
+                    console.error('Failed to copy text: ', err);
+                });
+            });
+        """),
         ui.tags.style(
             """
             .shiny-data-grid {
@@ -48,6 +66,9 @@ app_ui = ui.page_fluid(
                 font-size: 0.8em;
                 font-weight: bold;
                 color: white;
+            }
+            .clickable-row {
+                cursor: pointer;
             }
         """
         )
@@ -74,6 +95,7 @@ app_ui = ui.page_fluid(
                     ),
                     ui.input_action_button("load_issues", "Load Issues"),
                     ui.output_text("filtered_count_text"),
+                    ui.output_text("selected_issue"),
                     ui.download_button("download_json", "Download Main Table as JSON"),
                     open="open",
                 ),
@@ -82,13 +104,6 @@ app_ui = ui.page_fluid(
                     ui.output_data_frame("issues_table_main"),
                     ui.h3("Remaining 20% of Issues"),
                     ui.output_data_frame("issues_table_secondary"),
-                    # ui.modal(
-                    #     "issue_body_modal",
-                    #     ui.output_ui("issue_body_content"),
-                    #     title="Issue Body",
-                    #     easy_close=True,
-                    #     footer=None,
-                    # ),
                     class_="w-100",
                 ),
             ),
@@ -166,9 +181,8 @@ system_message = {
 def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
+    selected_issue = reactive.Value(None)
     chat = ui.Chat(id="chat", messages=[system_message])
-    # Add a new reactive value for streaming output
-    streaming_output = reactive.Value("")
 
     @reactive.Effect
     @reactive.event(input.load_issues)
@@ -276,6 +290,11 @@ def server(input, output, session):
         if count > 0:
             return f"Issues without labels filtered out: {count}"
         return ""
+    
+    @output
+    @render.text
+    def selected_issue_text():
+        return input.selected_issue()
 
     @output
     @render.data_frame
@@ -301,7 +320,9 @@ def server(input, output, session):
             ]))
         )
 
-        return render.DataTable(df_copy.drop(columns=["Body"]))
+        df_copy["Body"] = df_copy["Body"].apply(truncate_text)
+
+        return render.DataTable(df_copy, selection_mode="row")
 
     @output
     @render.data_frame
@@ -326,26 +347,9 @@ def server(input, output, session):
             ]))
         )
 
-        return render.DataTable(df_copy.drop(columns=["Body"]))
+        df_copy["Body"] = df_copy["Body"].apply(truncate_text)
 
-    @output
-    @render.ui
-    def issue_body_content():
-        issue_number = input.show_issue_body()
-        if issue_number and issues_data() is not None:
-            df = issues_data()
-            issue = df.filter(pl.col("Number") == int(issue_number)).to_pandas()
-            if not issue.empty:
-                return ui.div(
-                    ui.h3(f"Issue #{issue_number}: {issue['Title'].iloc[0]}"),
-                    ui.p(ui.HTML(issue["Body"].iloc[0]), class_="issue-body"),
-                )
-        return ui.p("No issue body available.")
-
-    # @reactive.Effect
-    # @reactive.event(input.show_issue_body)
-    # def show_issue_body():
-    #     ui.modal_show("issue_body_modal")
+        return render.DataTable(df_copy, selection_mode="row", styles={ "class": "clickable-row"})
 
     def format_issues_data():
         if issues_data() is not None:
@@ -408,6 +412,29 @@ def server(input, output, session):
     async def _():  
         # Simply echo the user's input back to them
         await chat.append_message(f"You said: {chat.user_input()}")
+
+    @reactive.Effect
+    @reactive.event(input.selected_issue)
+    def show_issue_modal():
+        issue_number = input.selected_issue()
+        if issue_number and issues_data() is not None:
+            df = issues_data()
+            issue = df.filter(pl.col("Number") == int(issue_number)).to_pandas()
+            if not issue.empty:
+                modal_content = ui.modal(
+                    ui.h3(f"Issue #{issue_number}: {issue['Title'].iloc[0]}"),
+                    ui.p(issue["Body"].iloc[0], id="modal_body"),
+                    ui.input_action_button("copy_button", "Copy to Clipboard"),
+                    title="Issue Details",
+                    easy_close=True,
+                    footer=None,
+                )
+                ui.modal_show(modal_content)
+
+    @reactive.Effect
+    @reactive.event(input.copy_button)
+    def copy_to_clipboard():
+        ui.notification_show("Text copied to clipboard!", type="message")
 
 
 app = App(app_ui, server)
