@@ -1,4 +1,5 @@
 from shiny import App, ui, render, reactive
+
 from datetime import datetime, timedelta
 import polars as pl
 import requests
@@ -71,13 +72,13 @@ app_ui = ui.page_fluid(
                     ui.output_data_frame("issues_table_main"),
                     ui.h3("Remaining 20% of Issues"),
                     ui.output_data_frame("issues_table_secondary"),
-                    ui.modal(
-                        "issue_body_modal",
-                        ui.output_ui("issue_body_content"),
-                        title="Issue Body",
-                        easy_close=True,
-                        footer=None,
-                    ),
+                    # ui.modal(
+                    #     "issue_body_modal",
+                    #     ui.output_ui("issue_body_content"),
+                    #     title="Issue Body",
+                    #     easy_close=True,
+                    #     footer=None,
+                    # ),
                     class_="w-100",
                 ),
             ),
@@ -97,11 +98,11 @@ app_ui = ui.page_fluid(
                         "Ollama Endpoint:",
                         value="http://localhost:11434",
                     ),
-                    ui.input_text("user_input", "Enter your message:"),
-                    ui.input_action_button("send", "Send"),
                 ),
                 ui.div(
                     ui.output_ui("chat_history"),
+                    ui.input_text("user_input", "Enter your message:"),
+                    ui.input_action_button("send", "Send"),
                 ),
             ),
         ),
@@ -154,6 +155,8 @@ def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
     chat_messages = reactive.Value([])
+    # Add a new reactive value for streaming output
+    streaming_output = reactive.Value("")
 
     @reactive.Effect
     @reactive.event(input.load_issues)
@@ -310,10 +313,10 @@ def server(input, output, session):
                 )
         return ui.p("No issue body available.")
 
-    @reactive.Effect
-    @reactive.event(input.show_issue_body)
-    def show_issue_body():
-        ui.modal_show("issue_body_modal")
+    # @reactive.Effect
+    # @reactive.event(input.show_issue_body)
+    # def show_issue_body():
+    #     ui.modal_show("issue_body_modal")
 
     def format_issues_data():
         if issues_data() is not None:
@@ -349,49 +352,47 @@ def server(input, output, session):
     def send_message():
         user_message = input.user_input()
         if user_message:
-            # Add user message to chat history
             chat_messages.set(chat_messages() + [("user", user_message)])
-
-            # Get the context from the first 80% of issues
-            # Get the formatted issues data
             issues_context = format_issues_data()
+            system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
 
-            # Prepare the messages for the API call
-        system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
+            if input.chat_model() == "AzureOpenAI":
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message},
+                ]
 
-        if input.chat_model() == "AzureOpenAI":
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
-            ]
+                # Use streaming for Azure OpenAI
+                streaming_output.set("")
+                for chunk in client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    stream=True,
+                ):
+                    if chunk.choices[0].delta.content is not None:
+                        streaming_output.set(streaming_output() + chunk.choices[0].delta.content)
 
-            # Call Azure AzureOpenAI API
-            response = client.chat.completions.create(
-                model="gpt-4o",  # Replace with your actual deployed model name
-                messages=messages,
-            )
+                assistant_reply = streaming_output()
 
-            # Extract the assistant's reply
-            assistant_reply = response.choices[0].message.content
+            else:  # Ollama
+                ollama_client = OllamaClient(host=input.ollama_endpoint())
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message},
+                ]
 
-        else:  # Ollama
-            # Create Ollama client with specified endpoint
-            ollama_client = OllamaClient(host=input.ollama_endpoint())
-            print(f"Ollama endpoint: {input.ollama_endpoint()}")
+                # Use streaming for Ollama
+                streaming_output.set("")
+                for chunk in ollama_client.chat(
+                    model="llama2",
+                    messages=messages,
+                    stream=True,
+                ):
+                    if chunk['message']['content']:
+                        streaming_output.set(streaming_output() + chunk['message']['content'])
 
-            # Prepare the messages for Ollama
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
-            ]
+                assistant_reply = streaming_output()
 
-            # Call Ollama API
-            response = ollama_client.chat(model="llama2", messages=messages)
-
-            # Extract the assistant's reply
-            assistant_reply = response["message"]["content"]
-
-            # Add assistant's reply to chat history
             chat_messages.set(chat_messages() + [("assistant", assistant_reply)])
 
     @output
@@ -401,7 +402,7 @@ def server(input, output, session):
             [
                 ui.p(f"{'You' if role == 'user' else 'Assistant'}: {message}")
                 for role, message in chat_messages()
-            ]
+            ] + [ui.p(streaming_output())]  # Add streaming output to chat history
         )
 
 

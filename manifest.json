@@ -6,7 +6,7 @@
     "entrypoint": "app"
   },
   "python": {
-    "version": "3.10.3",
+    "version": "3.12.2",
     "package_manager": {
       "name": "pip",
       "version": "24.2",
@@ -15,28 +15,34 @@
   },
   "files": {
     "requirements.txt": {
-      "checksum": "1ba2a3ff190bd73e4fe4fb7c91ae25eb"
+      "checksum": "9766eb96b71d6452fae3aab6a50b4af0"
+    },
+    ".envrc": {
+      "checksum": "48764d5c74ac7403633d545fe6336a0c"
     },
     ".gitignore": {
-      "checksum": "aacdaecf0982faed36fcda6e04279738"
+      "checksum": "eaea6d2599c4b6088fbbbd23311058f7"
     },
     ".python-version": {
-      "checksum": "8cd041063ffbcc5f18cb57b5f48f8fdc"
+      "checksum": "4b1cfc3892438e7ba57e2ab1bf47d895"
     },
     "LICENSE": {
       "checksum": "86d3f3a95c324c9479bd8986968f4327"
     },
     "Pipfile": {
-      "checksum": "28088018c82cbce9874c641df426ab43"
+      "checksum": "564aff2e2a6b4302af300cc8b6cdc2ce"
     },
     "Pipfile.lock": {
-      "checksum": "7dd4dcff3c1576b953db484620cac98b"
+      "checksum": "bfc4e76250702af6d54d8e2c4e75253c"
     },
     "README.md": {
       "checksum": "cabfdb1e4bfafd8b7534b79c16c46e05"
     },
     "app.py": {
-      "checksum": "ca834532efc4b883e20a872c9de5d46d"
+      "checksum": "56f43a77f184623b8170c21797b43f12"
+    },
+    "run": {
+      "checksum": "4f1edd8f64bc2e11055c4487c95d01b6"
     }
   }
 }
