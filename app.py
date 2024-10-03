@@ -95,7 +95,7 @@ app_ui = ui.page_fluid(
                     ),
                     ui.input_action_button("load_issues", "Load Issues"),
                     ui.output_text("filtered_count_text"),
-                    ui.output_text("selected_issue"),
+                    #ui.output_text("selected_issue"),
                     ui.download_button("download_json", "Download Main Table as JSON"),
                     open="open",
                 ),
@@ -173,15 +173,18 @@ app_ui = ui.page_fluid(
     ),
 )
 
-system_message = {
-  "content": "You are a helpful assistant",
-  "role": "system"
-}
+
 
 def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
     selected_issue = reactive.Value(None)
+    # TODO: fix this to use the actual issues data
+    issues_context = format_issues_data()
+    system_message = {
+        "content": f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}",
+        "role": "system"
+    }
     chat = ui.Chat(id="chat", messages=[system_message])
 
     @reactive.Effect
@@ -290,7 +293,7 @@ def server(input, output, session):
         if count > 0:
             return f"Issues without labels filtered out: {count}"
         return ""
-    
+
     @output
     @render.text
     def selected_issue_text():
@@ -382,8 +385,7 @@ def server(input, output, session):
 
     @chat.on_user_submit
     async def send_message():
-        issues_context = format_issues_data()
-        system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
+        # issues_context = format_issues_data()
 
         if input.chat_model() == "AzureOpenAI":
             messages = chat.messages(format="openai")
@@ -396,22 +398,17 @@ def server(input, output, session):
 
         else:  # Ollama
             messages = chat.messages(format="ollama")
+            print(messages)
             ollama_client = OllamaClient(host=input.ollama_endpoint())
 
             response = ollama_client.chat(
-                model="llama2",
+
+                model="llama3:8b",
                 messages=messages,
                 stream=True,
             )
 
             await chat.append_message_stream(response)
-
-
-    # Define a callback to run when the user submits a message
-    @chat.on_user_submit  
-    async def _():  
-        # Simply echo the user's input back to them
-        await chat.append_message(f"You said: {chat.user_input()}")
 
     @reactive.Effect
     @reactive.event(input.selected_issue)
