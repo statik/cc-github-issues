@@ -141,7 +141,14 @@ app_ui = ui.page_fluid(
                         rows=5,
                         placeholder="System prompt for the AI model",
                         width="100%",
-                        value="You are an AI assistant helping with GitHub issues analysis."),
+                        autoresize=True,
+                        value="""
+You are an AI assistant helping with GitHub issues analysis. Use these
+related issues to decide how to label the current issue:
+```
+{issues_context}
+```"""
+                        ),
                     ui.chat_ui("chat"),
                 ),
             ),
@@ -195,7 +202,6 @@ def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
     test_data = reactive.Value({ "issues": { "1": "Issue 1"}})
-    system_prompt = reactive.Value("")
 
     initial_messages = [
         {
@@ -314,10 +320,14 @@ def server(input, output, session):
                     [
                         pl.col("Created At")
                         .str.strptime(pl.Date, "%Y-%m-%dT%H:%M:%SZ")
-                        .dt.date(),
+                        .dt.date()
+                        .cast(pl.Utf8)
+                        ,#.str.strftime("%Y-%m-%d"),
                         pl.col("Closed At")
                         .str.strptime(pl.Date, "%Y-%m-%dT%H:%M:%SZ")
-                        .dt.date(),
+                        .dt.date()
+                        .cast(pl.Utf8)
+                        ,#.str.strftime("%Y-%m-%d"),
                     ]
                 )
 
@@ -379,7 +389,6 @@ def server(input, output, session):
         df = issues_data()
         main_count = math.floor(len(df) * 0.8)
         df_copy = df.tail(len(df) - main_count).to_pandas()
-        test_data = df_copy.to_dict(as_series=False)
 
         # Convert the 'Number' column to HTML links
         repo = input.repo()
@@ -430,10 +439,20 @@ def server(input, output, session):
 
     @chat.on_user_submit
     async def send_message():
-        # issues_context = format_issues_data()
+        issues_context = format_issues_data()
+        formatted_sys_prompt = input.system_prompt().format(issues_context=issues_context)
 
         if input.chat_model() == "AzureOpenAI":
             messages = chat.messages(format="openai")
+
+            # Update the system prompt
+            if messages and messages[0]["role"] == "system":
+                messages[0]["content"] = formatted_sys_prompt
+            else:
+                messages.insert(0, {"role": "system", "content": formatted_sys_prompt})
+
+            print(messages)
+
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
@@ -443,7 +462,13 @@ def server(input, output, session):
 
         else:  # Ollama
             messages = chat.messages(format="ollama")
-            print(messages)
+
+            # Update the system prompt
+            if messages and messages[0]["role"] == "system":
+                messages[0]["content"] = formatted_sys_prompt
+            else:
+                messages.insert(0, {"role": "system", "content": formatted_sys_prompt})
+
             ollama_client = OllamaClient(host=input.ollama_endpoint())
 
             response = ollama_client.chat(
