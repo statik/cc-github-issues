@@ -123,6 +123,14 @@ app_ui = ui.page_fluid(
                         "Ollama Endpoint:",
                         value="http://localhost:11434",
                     ),
+                    # ui.input_selectize(
+                    #     "issue",
+                    #     "Select Issue:",
+                    #     test_data(),
+                    #     multiple=True,
+                    #     options={"plugins": ["clear_button"]},
+                    # ),
+                    ui.input_action_button("reset_chat", "Reset chat", class_="btn-warning"),
                 ),
                 ui.div(
                     ui.chat_ui("chat"),
@@ -174,18 +182,38 @@ app_ui = ui.page_fluid(
 )
 
 
-
 def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
-    selected_issue = reactive.Value(None)
-    # TODO: fix this to use the actual issues data
-    issues_context = format_issues_data()
-    system_message = {
-        "content": f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}",
-        "role": "system"
-    }
-    chat = ui.Chat(id="chat", messages=[system_message])
+    test_data = reactive.Value({ "issues": { "1": "Issue 1"}})
+
+    initial_messages = [
+        {
+            "content": f"You are an AI assistant helping with GitHub issues analysis.",
+            "role": "system",
+        },
+        {
+            "role": "assistant",
+            "content": "**Hello!** Would you like me to label a GitHub issue for you?",
+        },
+    ]
+
+    chat = ui.Chat(id="chat", messages=initial_messages)
+
+    @reactive.effect
+    @reactive.event(chat.messages)
+    def set_reset_button_state():
+        if len(chat.messages()) > 2:
+            ui.update_action_button("reset_chat", disabled=False)
+        else:
+            ui.update_action_button("reset_chat", disabled=True)
+
+    @reactive.effect
+    @reactive.event(input.reset_chat)
+    async def reset():
+        print("Resetting chat")
+        await chat.clear_messages()
+
 
     @reactive.Effect
     @reactive.event(input.load_issues)
@@ -335,6 +363,7 @@ def server(input, output, session):
         df = issues_data()
         main_count = math.floor(len(df) * 0.8)
         df_copy = df.tail(len(df) - main_count).to_pandas()
+        test_data = df_copy.to_dict(as_series=False)
 
         # Convert the 'Number' column to HTML links
         repo = input.repo()
