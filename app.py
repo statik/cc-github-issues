@@ -139,6 +139,8 @@ app_ui = ui.page_fluid(
                         "system_prompt",
                         "System Prompt",
                         rows=5,
+                        placeholder="System prompt for the AI model",
+                        width="100%",
                         value="You are an AI assistant helping with GitHub issues analysis."),
                     ui.chat_ui("chat"),
                 ),
