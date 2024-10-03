@@ -6,6 +6,7 @@ import math
 import json
 import os
 
+from ollama import Client as OllamaClient
 from openai import AzureOpenAI
 from shiny.types import ImgData
 from htmltools import Tag
@@ -85,6 +86,17 @@ app_ui = ui.page_fluid(
             "Chat",
             ui.layout_sidebar(
                 ui.sidebar(
+                    ui.input_radio_buttons(
+                        "chat_model",
+                        "Select Chat Model:",
+                        choices=["AzureOpenAI", "Ollama"],
+                        selected="AzureOpenAI",
+                    ),
+                    ui.input_text(
+                        "ollama_endpoint",
+                        "Ollama Endpoint:",
+                        value="http://localhost:11434",
+                    ),
                     ui.input_text("user_input", "Enter your message:"),
                     ui.input_action_button("send", "Send"),
                 ),
@@ -120,7 +132,7 @@ app_ui = ui.page_fluid(
                         ),
                         ui.tags.li("Only issues with labels are displayed"),
                         ui.tags.li(
-                            "Download main table issues as JSON for use with OpenAI"
+                            "Download main table issues as JSON for use with AzureOpenAI"
                         ),
                     ),
                     ui.br(),
@@ -345,15 +357,15 @@ def server(input, output, session):
             issues_context = format_issues_data()
 
             # Prepare the messages for the API call
+        system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
+
+        if input.chat_model() == "AzureOpenAI":
             messages = [
-                {
-                    "role": "system",
-                    "content": f"You are an AI assistant helping with GitHub issues analysis. Here's the context of the issues:\n\n{issues_context}",
-                },
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
             ]
 
-            # Call Azure OpenAI API
+            # Call Azure AzureOpenAI API
             response = client.chat.completions.create(
                 model="gpt-4o",  # Replace with your actual deployed model name
                 messages=messages,
@@ -361,6 +373,23 @@ def server(input, output, session):
 
             # Extract the assistant's reply
             assistant_reply = response.choices[0].message.content
+
+        else:  # Ollama
+            # Create Ollama client with specified endpoint
+            ollama_client = OllamaClient(host=input.ollama_endpoint())
+            print(f"Ollama endpoint: {input.ollama_endpoint()}")
+
+            # Prepare the messages for Ollama
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ]
+
+            # Call Ollama API
+            response = ollama_client.chat(model="llama2", messages=messages)
+
+            # Extract the assistant's reply
+            assistant_reply = response["message"]["content"]
 
             # Add assistant's reply to chat history
             chat_messages.set(chat_messages() + [("assistant", assistant_reply)])
