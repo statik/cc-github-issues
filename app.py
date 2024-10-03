@@ -35,7 +35,8 @@ def truncate_text(text, max_length=100):
 
 app_ui = ui.page_fluid(
     ui.head_content(
-        ui.tags.script("""
+        ui.tags.script(
+            """
             $(document).on('click', '.clickable-row tbody tr', function() {
                 let issueNumber = $(this).find('td:first').text();
                 Shiny.setInputValue('selected_issue', issueNumber);
@@ -48,7 +49,8 @@ app_ui = ui.page_fluid(
                     console.error('Failed to copy text: ', err);
                 });
             });
-        """),
+        """
+        ),
         ui.tags.style(
             """
             .shiny-data-grid {
@@ -71,7 +73,7 @@ app_ui = ui.page_fluid(
                 cursor: pointer;
             }
         """
-        )
+        ),
     ),
     ui.h2("GitHub Issues Explorer"),
     ui.navset_tab(
@@ -100,7 +102,7 @@ app_ui = ui.page_fluid(
                     ),
                     ui.input_action_button("load_issues", "Load Issues"),
                     ui.output_text("filtered_count_text"),
-                    #ui.output_text("selected_issue"),
+                    # ui.output_text("selected_issue"),
                     ui.download_button("download_json", "Download Main Table as JSON"),
                     open="open",
                 ),
@@ -126,7 +128,16 @@ app_ui = ui.page_fluid(
                     ui.input_text(
                         "ollama_endpoint",
                         "Ollama Endpoint:",
-                        value="http://localhost:11434",
+                        value=os.getenv(
+                            "OLLAMA_ENDPOINT", default="http://localhost:11434"
+                        ),
+                    ),
+                    ui.input_text(
+                        "ollama_model",
+                        "Ollama Model:",
+                        value=os.getenv(
+                            "OLLAMA_MODEL", default="llama3:8b"
+                        ),
                     ),
                     # ui.input_selectize(
                     #     "issue",
@@ -135,9 +146,13 @@ app_ui = ui.page_fluid(
                     #     multiple=True,
                     #     options={"plugins": ["clear_button"]},
                     # ),
-                    ui.input_text("analyze_issue", "What issue do you want to analyze?"),
+                    ui.input_text(
+                        "analyze_issue", "What issue do you want to analyze?"
+                    ),
                     ui.input_action_button("load_issue_query", "Create Issue Query"),
-                    ui.input_action_button("reset_chat", "Reset chat", class_="btn-warning"),
+                    ui.input_action_button(
+                        "reset_chat", "Reset chat", class_="btn-warning"
+                    ),
                     open="open",
                 ),
                 ui.div(
@@ -153,8 +168,8 @@ You are an AI assistant helping with GitHub issues analysis. Use these
 related issues to decide how to label the current issue:
 ```
 {issues_context}
-```"""
-                        ),
+```""",
+                    ),
                     ui.chat_ui("chat"),
                 ),
             ),
