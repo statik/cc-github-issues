@@ -269,7 +269,6 @@ def server(input, output, session):
 
         chat.update_user_input(value=text)
 
-
     @reactive.Effect
     @reactive.event(input.load_issues)
     def load_issues():
@@ -500,13 +499,14 @@ def server(input, output, session):
             if messages and messages[0]["role"] == "system":
                 messages[0]["content"] = formatted_sys_prompt
             else:
-                messages.insert(0, {"role": "system", "content": formatted_sys_prompt})
+                messages = (
+                    {"role": "system", "content": formatted_sys_prompt},
+                ) + messages
 
             ollama_client = OllamaClient(host=input.ollama_endpoint())
 
             response = ollama_client.chat(
-
-                model="llama3:8b",
+                model=input.ollama_model(),
                 messages=messages,
                 stream=True,
             )
