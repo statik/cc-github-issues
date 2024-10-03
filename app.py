@@ -233,7 +233,19 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.load_issue_query)
     def load():
-        text = f"Analyze issue: {input.analyze_issue()}"
+        issue_number = input.analyze_issue()
+        if issues_data() is not None and issue_number:
+            df = issues_data()
+            issue = df.filter(pl.col("Number") == int(issue_number))
+            if issue.height > 0:
+                title = issue.select("Title").item()
+                body = issue.select("Body").item()
+                text = f"Analyze issue #{issue_number}: {title}\n\nBody: {body}"
+            else:
+                text = f"Issue #{issue_number} not found in the loaded data."
+        else:
+            text = f"No issues data loaded or invalid issue number: {issue_number}"
+
         chat.update_user_input(value=text)
 
 
@@ -451,7 +463,7 @@ def server(input, output, session):
             else:
                 messages.insert(0, {"role": "system", "content": formatted_sys_prompt})
 
-            print(messages)
+            # print(messages)
 
             response = client.chat.completions.create(
                 model="gpt-4o",
