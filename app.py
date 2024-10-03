@@ -84,6 +84,11 @@ app_ui = ui.page_fluid(
                         "GitHub Repository",
                         value="rstudio/rstudio-docker-products",
                     ),
+                    ui.input_text(
+                        "github_token",
+                        "GitHub PAT",
+                        placeholder="Optional",
+                    ),
                     ui.input_date("cutoff", "Cutoff Date", value=default_date),
                     ui.input_slider(
                         "num_issues",
@@ -227,7 +232,7 @@ def server(input, output, session):
     @reactive.effect
     @reactive.event(input.reset_chat)
     async def reset():
-        print("Resetting chat")
+        # print("Resetting chat")
         await chat.clear_messages()
 
     @reactive.effect
@@ -240,7 +245,7 @@ def server(input, output, session):
             if issue.height > 0:
                 title = issue.select("Title").item()
                 body = issue.select("Body").item()
-                text = f"Analyze issue #{issue_number}: {title}\n\nBody: {body}"
+                text = f"Analyze this issue to determin which issue labels should be applied #{issue_number}: {title}\n\nBody: {body}"
             else:
                 text = f"Issue #{issue_number} not found in the loaded data."
         else:
@@ -269,7 +274,7 @@ def server(input, output, session):
             return
 
         # Get the GitHub token from environment variable
-        github_token = os.environ.get("GITHUB_TOKEN")
+        github_token = input.github_token()
 
         headers = {"Accept": "application/vnd.github.v3+json"}
 
