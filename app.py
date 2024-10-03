@@ -6,6 +6,7 @@ import requests
 import math
 import json
 import os
+import hashlib
 
 from ollama import Client as OllamaClient
 from openai import AzureOpenAI
@@ -22,22 +23,31 @@ client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
 )
 
+# Add this function to generate a color based on the label text
+def get_label_color(label):
+    hash_object = hashlib.md5(label.encode())
+    hex_dig = hash_object.hexdigest()
+    return f"#{hex_dig[:6]}"
+
 app_ui = ui.page_fluid(
     ui.head_content(
         ui.tags.style(
             """
-            .dataTable {
-                width: 100% !important;
-            }
-            .dataTables_scrollBody {
-                width: 100% !important;
-            }
-            .dataTables_wrapper {
+            .shiny-data-grid {
                 width: 100% !important;
             }
             .issue-body {
                 white-space: pre-wrap;
                 word-wrap: break-word;
+            }
+            .label-tag {
+                display: inline-block;
+                padding: 2px 6px;
+                margin: 2px;
+                border-radius: 12px;
+                font-size: 0.8em;
+                font-weight: bold;
+                color: white;
             }
         """
         )
@@ -100,9 +110,7 @@ app_ui = ui.page_fluid(
                     ),
                 ),
                 ui.div(
-                    ui.output_ui("chat_history"),
-                    ui.input_text("user_input", "Enter your message:"),
-                    ui.input_action_button("send", "Send"),
+                    ui.chat_ui("chat"),
                 ),
             ),
         ),
@@ -150,11 +158,15 @@ app_ui = ui.page_fluid(
     ),
 )
 
+system_message = {
+  "content": "You are a helpful assistant",
+  "role": "system"
+}
 
 def server(input, output, session):
     issues_data = reactive.Value(None)
     filtered_count = reactive.Value(0)
-    chat_messages = reactive.Value([])
+    chat = ui.Chat(id="chat", messages=[system_message])
     # Add a new reactive value for streaming output
     streaming_output = reactive.Value("")
 
@@ -278,7 +290,15 @@ def server(input, output, session):
         # Convert the 'Number' column to HTML links
         repo = input.repo()
         df_copy["Number"] = df_copy["Number"].apply(
-            lambda x: f'<a href="https://github.com/{repo}/issues/{x}" target="_blank">{x}</a>'
+            lambda x: ui.HTML(f'<a href="https://github.com/{repo}/issues/{x}" target="_blank">{x}</a>')
+        )
+
+        # Format the 'Labels' column as colored tags
+        df_copy["Labels"] = df_copy["Labels"].apply(
+            lambda labels: ui.HTML(''.join([
+                f'<span class="label-tag" style="background-color: {get_label_color(label)};">{label}</span>'
+                for label in labels.split(", ")
+            ]))
         )
 
         return render.DataTable(df_copy.drop(columns=["Body"]))
@@ -295,8 +315,17 @@ def server(input, output, session):
         # Convert the 'Number' column to HTML links
         repo = input.repo()
         df_copy["Number"] = df_copy["Number"].apply(
-            lambda x: f'<a href="https://github.com/{repo}/issues/{x}" target="_blank">{x}</a>'
+            lambda x: ui.HTML(f'<a href="https://github.com/{repo}/issues/{x}" target="_blank">{x}</a>')
         )
+
+        # Format the 'Labels' column as colored tags
+        df_copy["Labels"] = df_copy["Labels"].apply(
+            lambda labels: ui.HTML(''.join([
+                f'<span class="label-tag" style="background-color: {get_label_color(label)};">{label}</span>'
+                for label in labels.split(", ")
+            ]))
+        )
+
         return render.DataTable(df_copy.drop(columns=["Body"]))
 
     @output
@@ -347,63 +376,38 @@ def server(input, output, session):
         # print("Download function called")  # Debug print
         yield format_issues_data()
 
-    @reactive.Effect
-    @reactive.event(input.send)
-    def send_message():
-        user_message = input.user_input()
-        if user_message:
-            chat_messages.set(chat_messages() + [("user", user_message)])
-            issues_context = format_issues_data()
-            system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
+    @chat.on_user_submit
+    async def send_message():
+        issues_context = format_issues_data()
+        system_message = f"You are an AI assistant helping with GitHub issues analysis. When you respond, tell me what model you used. Here's the context of the issues:\n\n{issues_context}"
 
-            if input.chat_model() == "AzureOpenAI":
-                messages = [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message},
-                ]
+        if input.chat_model() == "AzureOpenAI":
+            messages = chat.messages(format="openai")
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                stream=True,
+            )
+            await chat.append_message_stream(response)
 
-                # Use streaming for Azure OpenAI
-                streaming_output.set("")
-                for chunk in client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    stream=True,
-                ):
-                    if chunk.choices[0].delta.content is not None:
-                        streaming_output.set(streaming_output() + chunk.choices[0].delta.content)
+        else:  # Ollama
+            messages = chat.messages(format="ollama")
+            ollama_client = OllamaClient(host=input.ollama_endpoint())
 
-                assistant_reply = streaming_output()
+            response = ollama_client.chat(
+                model="llama2",
+                messages=messages,
+                stream=True,
+            )
 
-            else:  # Ollama
-                ollama_client = OllamaClient(host=input.ollama_endpoint())
-                messages = [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message},
-                ]
+            await chat.append_message_stream(response)
 
-                # Use streaming for Ollama
-                streaming_output.set("")
-                for chunk in ollama_client.chat(
-                    model="llama2",
-                    messages=messages,
-                    stream=True,
-                ):
-                    if chunk['message']['content']:
-                        streaming_output.set(streaming_output() + chunk['message']['content'])
 
-                assistant_reply = streaming_output()
-
-            chat_messages.set(chat_messages() + [("assistant", assistant_reply)])
-
-    @output
-    @render.ui
-    def chat_history():
-        return ui.div(
-            [
-                ui.p(f"{'You' if role == 'user' else 'Assistant'}: {message}")
-                for role, message in chat_messages()
-            ] + [ui.p(streaming_output())]  # Add streaming output to chat history
-        )
+    # Define a callback to run when the user submits a message
+    @chat.on_user_submit  
+    async def _():  
+        # Simply echo the user's input back to them
+        await chat.append_message(f"You said: {chat.user_input()}")
 
 
 app = App(app_ui, server)
