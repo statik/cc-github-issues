@@ -315,7 +315,7 @@ def server(input, output, session):
                 filtered_issues = 0
 
                 while url and len(issues) < num_issues:
-                    response = requests.get(url, params=params)
+                    response = requests.get(url, params=params, headers=headers)
                     response.raise_for_status()
                     new_issues = response.json()
                     total_issues += len(new_issues)
