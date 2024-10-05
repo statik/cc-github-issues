@@ -86,7 +86,7 @@ app_ui = ui.page_fluid(
                         "GitHub Repository",
                         value="rstudio/rstudio-docker-products",
                     ),
-                    ui.input_text(
+                    ui.input_password(
                         "github_token",
                         "GitHub PAT",
                         placeholder="Optional",
