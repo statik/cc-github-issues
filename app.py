@@ -10,18 +10,30 @@ import hashlib
 
 from ollama import Client as OllamaClient
 from openai import AzureOpenAI
+from anthropic import AnthropicBedrock
+
 from shiny.types import ImgData
 from htmltools import Tag
 
 # Default date (2 years ago)
-default_date = (datetime.now() - timedelta(days=730)).strftime("%Y-%m-%d")
+default_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+
 
 # Azure OpenAI configuration
-client = AzureOpenAI(
+azure_client = AzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_KEY"),
     api_version="2023-05-15",
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
 )
+
+bedrock_client = AnthropicBedrock(
+    aws_profile=os.getenv("AWS_PROFILE"),
+    # aws_secret_key=os.getenv("AWS_SECRET_KEY"),
+    # aws_access_key=os.getenv("AWS_ACCESS_KEY"),
+    # aws_region=os.getenv("AWS_REGION"),
+    # aws_account_id=os.getenv("AWS_ACCOUNT_ID"),
+)
+
 
 # Add this function to generate a color based on the label text
 def get_label_color(label):
@@ -90,6 +102,7 @@ app_ui = ui.page_fluid(
                         "github_token",
                         "GitHub PAT",
                         placeholder="Optional",
+                        value=os.getenv("GITHUB_TOKEN"),
                     ),
                     ui.input_date("cutoff", "Cutoff Date", value=default_date),
                     ui.input_slider(
@@ -122,7 +135,7 @@ app_ui = ui.page_fluid(
                     ui.input_radio_buttons(
                         "chat_model",
                         "Select Chat Model:",
-                        choices=["AzureOpenAI", "Ollama"],
+                        choices=["AzureOpenAI", "Ollama", "Claude3.5Sonnet"],
                         selected="AzureOpenAI",
                     ),
                     ui.input_text(
@@ -225,10 +238,6 @@ def server(input, output, session):
     test_data = reactive.Value({ "issues": { "1": "Issue 1"}})
 
     initial_messages = [
-        {
-            "content": f"You are an AI assistant helping with GitHub issues analysis.",
-            "role": "system",
-        },
         {
             "role": "assistant",
             "content": "**Hello!** Would you like me to label a GitHub issue for you?",
@@ -481,18 +490,20 @@ def server(input, output, session):
             if messages and messages[0]["role"] == "system":
                 messages[0]["content"] = formatted_sys_prompt
             else:
-                messages.insert(0, {"role": "system", "content": formatted_sys_prompt})
+                messages = (
+                    {"role": "system", "content": formatted_sys_prompt},
+                ) + messages
 
             # print(messages)
 
-            response = client.chat.completions.create(
+            response = azure_client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
                 stream=True,
             )
             await chat.append_message_stream(response)
 
-        else:  # Ollama
+        elif input.chat_model() == "Ollama":
             messages = chat.messages(format="ollama")
 
             # Update the system prompt
@@ -512,6 +523,29 @@ def server(input, output, session):
             )
 
             await chat.append_message_stream(response)
+
+        else: # Claude 3.5 Sonnet via Bedrock
+            messages = chat.messages(format="anthropic")
+
+            # Update the system prompt
+            # if messages and messages[0]["role"] == "system":
+            #     messages[0]["content"] = formatted_sys_prompt
+            # else:
+            #     messages = (
+            #         {"role": "system", "content": formatted_sys_prompt},
+            #     ) + messages
+
+            response = bedrock_client.messages.create(
+                model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+                messages=messages,
+                stream=True,
+                system=formatted_sys_prompt,
+                max_tokens=1000,
+            )
+            # Append the response stream into the chat
+            await chat.append_message_stream(response)
+
+            
 
     @reactive.Effect
     @reactive.event(input.selected_issue)
